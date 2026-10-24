@@ -1,0 +1,115 @@
+import json
+import os
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+TOKEN = os.environ.get("TOKEN")
+BASE_URL = f"https://api.telegram.org/bot{TOKEN}/"
+
+
+def api_call(method, data=None):
+  url = BASE_URL + method
+  req_data = json.dumps(data).encode("utf-8") if data else None
+  headers = {"Content-Type": "application/json"} if data else {}
+  req = urllib.request.Request(url, data=req_data, headers=headers)
+  try:
+    with urllib.request.urlopen(req, timeout=30) as resp:
+      return json.loads(resp.read().decode("utf-8"))
+  except Exception as e:
+    print(f"[خطای ارتباط]: {e}")
+  return None
+
+
+def smart_reply(text, first_name):
+  if not text:
+    return None
+  t = text.strip()
+
+  if any(w in t for w in ["خوشگل ممزی", "خوشگلِ ممزی", "خوشگله ممزی", "خوشگل من"]):
+    return "دیناست"
+  elif any(w in t for w in ["زن ممزی", "همسر ممزی", "خانوم ممزی", "زن من"]):
+    return "دیناست"
+  elif any(
+      w in t
+      for w in [
+          "زندگی ممزی",
+          "زندگیِ ممزی",
+          "عشق ممزی",
+          "عشق من",
+          "عشقم",
+          "دوست دختر",
+      ]
+  ):
+    return "دیناست"
+  elif any(w in t for w in ["سلام", "درود", "هلو", "سلامم"]):
+    return f"سلام {first_name} عزیز! 🌹 چطور می‌تونم کمکت کنم؟"
+  elif any(w in t for w in ["خوبی", "چطوری", "چه خبر", "احوالت"]):
+    return "مرسی قربانت، منم عالی‌ام! 😎"
+  elif any(w in t for w in ["اسمت چیه", "کی هستی", "معرفی"]):
+    return "من ربات هوشمند و دستیار اختصاصی mamzi هستم! 🤖"
+  elif any(w in t for w in ["سازنده", "کی ساختت", "مدیرت کیه", "mamzi", "ممزی"]):
+    return "رئیس و سازنده من mamzi هستن 👑"
+  elif any(w in t for w in ["مرسی", "ممنون", "دمت گرم", "عشقی"]):
+    return "خواهش می‌کنم، کاری نکردم! ❤️"
+  elif any(w in t for w in ["خداحافظ", "فعلا", "بای"]):
+    return "خدانگهدار! 👋🌹"
+
+  return None
+
+
+def main():
+  print("در حال اتصال به تلگرام...")
+  me = api_call("getMe")
+  if not me or not me.get("ok"):
+    print("❌ خطا: ارتباط برقرار نشد. توکن را بررسی کنید.")
+    return
+
+  bot_username = me["result"]["username"]
+  print(f"✅ ربات @{bot_username} با موفقیت روشن شد!")
+
+  offset = 0
+  while True:
+    try:
+      updates = api_call(
+          "getUpdates",
+          {"offset": offset, "timeout": 25, "allowed_updates": ["message"]},
+      )
+
+      if updates and updates.get("ok"):
+        for item in updates["result"]:
+          offset = item["update_id"] + 1
+          msg = item.get("message")
+          if not msg:
+            continue
+
+          chat_id = msg["chat"]["id"]
+          user = msg.get("from", {})
+          first_name = user.get("first_name", "دوست")
+          text = msg.get("text", "")
+
+          print(f"📩 پیام از {first_name}: {text}")
+
+          answer = smart_reply(text, first_name)
+          if answer:
+            api_call("sendMessage", {"chat_id": chat_id, "text": answer})
+            print(f"📤 پاسخ داده شد: {answer}")
+          else:
+            api_call(
+                "sendMessage",
+                {
+                    "chat_id": chat_id,
+                    "text": f"پیامت دریافت شد {first_name} عزیز! ✅",
+                },
+            )
+      else:
+        time.sleep(1)
+
+    except Exception as e:
+      print(f"⚠️ خطا در حلقه: {e}")
+      time.sleep(3)
+
+
+if __name__ == "__main__":
+  main()
